@@ -11,52 +11,33 @@
 //! submodules, and you should also implement syscalls this way.
 
 /// write syscall
-const SYSCALL_WRITE: usize = 64;
+pub const SYSCALL_WRITE: usize = 64;
 /// exit syscall
-const SYSCALL_EXIT: usize = 93;
+pub const SYSCALL_EXIT: usize = 93;
 /// yield syscall
-const SYSCALL_YIELD: usize = 124;
+pub const SYSCALL_YIELD: usize = 124;
 /// gettime syscall
-const SYSCALL_GET_TIME: usize = 169;
+pub const SYSCALL_GET_TIME: usize = 169;
 /// trace syscall
-const SYSCALL_TRACE: usize = 410;
+pub const SYSCALL_TRACE: usize = 410;
 
 mod fs;
 mod process;
 
-use core::sync::atomic::{AtomicIsize, Ordering};
-
 use fs::*;
 use process::*;
 
-static SYSCALL_WRITE_COUNT: AtomicIsize = AtomicIsize::new(0);
-static SYSCALL_EXIT_COUNT: AtomicIsize = AtomicIsize::new(0);
-static SYSCALL_YIELD_COUNT: AtomicIsize = AtomicIsize::new(0);
-static SYSCALL_GET_TIME_COUNT: AtomicIsize = AtomicIsize::new(0);
-static SYSCALL_TRACE_COUNT: AtomicIsize = AtomicIsize::new(0);
+use crate::task::count_syscall;
+
 /// handle syscall exception with `syscall_id` and other arguments
 pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
+    count_syscall(syscall_id);
     match syscall_id {
-        SYSCALL_WRITE => {
-            SYSCALL_WRITE_COUNT.fetch_add(1, Ordering::Relaxed);
-            sys_write(args[0], args[1] as *const u8, args[2])
-        }
-        SYSCALL_EXIT => {
-            SYSCALL_EXIT_COUNT.fetch_add(1, Ordering::Relaxed);
-            sys_exit(args[0] as i32)
-        }
-        SYSCALL_YIELD => {
-            SYSCALL_YIELD_COUNT.fetch_add(1, Ordering::Relaxed);
-            sys_yield()
-        }
-        SYSCALL_GET_TIME => {
-            SYSCALL_GET_TIME_COUNT.fetch_add(1, Ordering::Relaxed);
-            sys_get_time(args[0] as *mut TimeVal, args[1])
-        }
-        SYSCALL_TRACE => {
-            SYSCALL_TRACE_COUNT.fetch_add(1, Ordering::Relaxed);
-            sys_trace(args[0], args[1], args[2])
-        }
+        SYSCALL_WRITE => sys_write(args[0], args[1] as *const u8, args[2]),
+        SYSCALL_EXIT => sys_exit(args[0] as i32),
+        SYSCALL_YIELD => sys_yield(),
+        SYSCALL_GET_TIME => sys_get_time(args[0] as *mut TimeVal, args[1]),
+        SYSCALL_TRACE => sys_trace(args[0], args[1], args[2]),
         _ => panic!("Unsupported syscall_id: {}", syscall_id),
     }
 }

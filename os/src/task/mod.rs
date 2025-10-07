@@ -14,9 +14,12 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
+use core::array;
+
 use crate::config::MAX_APP_NUM;
 use crate::loader::{get_num_app, init_app_cx};
 use crate::sync::UPSafeCell;
+use crate::syscall::{SYSCALL_EXIT, SYSCALL_GET_TIME, SYSCALL_TRACE, SYSCALL_WRITE, SYSCALL_YIELD};
 use lazy_static::*;
 use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
@@ -51,10 +54,11 @@ lazy_static! {
     /// Global variable: TASK_MANAGER
     pub static ref TASK_MANAGER: TaskManager = {
         let num_app = get_num_app();
-        let mut tasks = [TaskControlBlock {
+        let mut tasks = array::from_fn(|_| TaskControlBlock {
             task_cx: TaskContext::zero_init(),
             task_status: TaskStatus::UnInit,
-        }; MAX_APP_NUM];
+            syscall_count: Default::default(),
+        });
         for (i, task) in tasks.iter_mut().enumerate() {
             task.task_cx = TaskContext::goto_restore(init_app_cx(i));
             task.task_status = TaskStatus::Ready;
@@ -135,6 +139,38 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
+
+    fn count_syscall(&self, syscall_id: usize) {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        match syscall_id {
+            SYSCALL_WRITE => inner.tasks[current].syscall_count.write += 1,
+            SYSCALL_EXIT => inner.tasks[current].syscall_count.exit += 1,
+            SYSCALL_YIELD => inner.tasks[current].syscall_count.yield_ += 1,
+            SYSCALL_GET_TIME => inner.tasks[current].syscall_count.get_time += 1,
+            SYSCALL_TRACE => inner.tasks[current].syscall_count.trace += 1,
+            _ => {
+                warn!("Unsupported syscall_id: {}", syscall_id);
+                return;
+            }
+        }
+    }
+
+    fn get_syscall_count(&self, syscall_id: usize) -> usize {
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        match syscall_id {
+            SYSCALL_WRITE => inner.tasks[current].syscall_count.write,
+            SYSCALL_EXIT => inner.tasks[current].syscall_count.exit,
+            SYSCALL_YIELD => inner.tasks[current].syscall_count.yield_,
+            SYSCALL_GET_TIME => inner.tasks[current].syscall_count.get_time,
+            SYSCALL_TRACE => inner.tasks[current].syscall_count.trace,
+            _ => {
+                warn!("Unsupported syscall_id: {}", syscall_id);
+                0
+            }
+        }
+    }
 }
 
 /// Run the first task in task list.
@@ -168,4 +204,14 @@ pub fn suspend_current_and_run_next() {
 pub fn exit_current_and_run_next() {
     mark_current_exited();
     run_next_task();
+}
+
+/// Count the syscall of the current task.
+pub fn count_syscall(syscall_id: usize) {
+    TASK_MANAGER.count_syscall(syscall_id);
+}
+
+/// Get the syscall count of the current task.
+pub fn get_syscall_count(syscall_id: usize) -> usize {
+    TASK_MANAGER.get_syscall_count(syscall_id)
 }
