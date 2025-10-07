@@ -48,8 +48,11 @@ impl UserStack {
 }
 
 struct AppManager {
+    /// 应用的数量，在汇编文件 `link_app.S` 中定义
     num_app: usize,
+    /// 当前正在运行的应用的序号
     current_app: usize,
+    /// 记录每个应用的起始地址，在汇编文件 `link_app.S` 中定义
     app_start: [usize; MAX_APP_NUM + 1],
 }
 
@@ -66,6 +69,7 @@ impl AppManager {
         }
     }
 
+    /// 将APP加载到APP_BASE_ADDRESS处
     unsafe fn load_app(&self, app_id: usize) {
         if app_id >= self.num_app {
             println!("All applications completed!");
