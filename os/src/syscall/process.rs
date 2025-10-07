@@ -1,5 +1,12 @@
 //! Process management syscalls
+use core::sync::atomic::Ordering;
+
 use crate::{
+    syscall::{
+        SYSCALL_EXIT, SYSCALL_EXIT_COUNT, SYSCALL_GET_TIME, SYSCALL_GET_TIME_COUNT, SYSCALL_TRACE,
+        SYSCALL_TRACE_COUNT, SYSCALL_WRITE, SYSCALL_WRITE_COUNT, SYSCALL_YIELD,
+        SYSCALL_YIELD_COUNT,
+    },
     task::{exit_current_and_run_next, suspend_current_and_run_next},
     timer::get_time_us,
 };
@@ -38,8 +45,22 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
     0
 }
 
-// TODO: implement the syscall
-pub fn sys_trace(_trace_request: usize, _id: usize, _data: usize) -> isize {
+pub fn sys_trace(trace_request: usize, id: usize, data: usize) -> isize {
     trace!("kernel: sys_trace");
-    -1
+    match trace_request {
+        0 => return unsafe { (id as *const u8).read_volatile() } as isize,
+        1 => {
+            unsafe { (id as *mut u8).write_volatile(data as u8) };
+            return 0;
+        }
+        2 => match id {
+            SYSCALL_EXIT => SYSCALL_EXIT_COUNT.load(Ordering::Relaxed),
+            SYSCALL_GET_TIME => SYSCALL_GET_TIME_COUNT.load(Ordering::Relaxed),
+            SYSCALL_WRITE => SYSCALL_WRITE_COUNT.load(Ordering::Relaxed),
+            SYSCALL_TRACE => SYSCALL_TRACE_COUNT.load(Ordering::Relaxed),
+            SYSCALL_YIELD => SYSCALL_YIELD_COUNT.load(Ordering::Relaxed),
+            _ => return 0,
+        },
+        _ => return -1,
+    }
 }
