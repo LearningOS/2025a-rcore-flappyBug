@@ -28,6 +28,28 @@ pub struct TaskControlBlock {
 
     /// Program break
     pub program_brk: usize,
+
+    /// The syscall count
+    pub syscall_count: SyscallCount,
+}
+
+/// The syscall count of a task.
+#[derive(Clone, Default)]
+pub struct SyscallCount {
+    /// Counts for each syscall indexed by syscall_id
+    pub counts: alloc::collections::BTreeMap<usize, usize>,
+}
+
+impl SyscallCount {
+    /// Increment the count for a syscall
+    pub fn inc(&mut self, syscall_id: usize) {
+        *self.counts.entry(syscall_id).or_insert(0) += 1;
+    }
+
+    /// Get the count for a syscall
+    pub fn get(&self, syscall_id: usize) -> usize {
+        self.counts.get(&syscall_id).copied().unwrap_or(0)
+    }
 }
 
 impl TaskControlBlock {
@@ -63,6 +85,7 @@ impl TaskControlBlock {
             base_size: user_sp,
             heap_bottom: user_sp,
             program_brk: user_sp,
+            syscall_count: SyscallCount::default(),
         };
         // prepare TrapContext in user space
         let trap_cx = task_control_block.get_trap_cx();
