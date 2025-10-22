@@ -8,7 +8,9 @@ use alloc::vec::Vec;
 use core::fmt::{self, Debug, Formatter};
 use lazy_static::*;
 
-/// tracker for physical page frame allocation and deallocation
+/// Tracker for physical page frame allocation and deallocation.
+/// When a `FrameTracker` is created, the corresponding frame will be zeroed.
+/// When a `FrameTracker` is dropped, the corresponding frame will be deallocated.
 pub struct FrameTracker {
     /// physical page number
     pub ppn: PhysPageNum,
@@ -115,23 +117,4 @@ pub fn frame_alloc() -> Option<FrameTracker> {
 /// Deallocate a physical page frame with a given ppn
 pub fn frame_dealloc(ppn: PhysPageNum) {
     FRAME_ALLOCATOR.exclusive_access().dealloc(ppn);
-}
-
-#[allow(unused)]
-/// a simple test for frame allocator
-pub fn frame_allocator_test() {
-    let mut v: Vec<FrameTracker> = Vec::new();
-    for i in 0..5 {
-        let frame = frame_alloc().unwrap();
-        println!("{:?}", frame);
-        v.push(frame);
-    }
-    v.clear();
-    for i in 0..5 {
-        let frame = frame_alloc().unwrap();
-        println!("{:?}", frame);
-        v.push(frame);
-    }
-    drop(v);
-    println!("frame_allocator_test passed!");
 }
