@@ -215,6 +215,11 @@ pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
 }
 
+/// Count the syscall of the current task.
+pub fn count_syscall(syscall_id: usize) {
+    TASK_MANAGER.count_syscall(syscall_id);
+}
+
 /// Get the syscall count of the current task.
 pub fn get_syscall_count(syscall_id: usize) -> usize {
     TASK_MANAGER.get_syscall_count(syscall_id)
