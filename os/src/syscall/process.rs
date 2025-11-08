@@ -160,10 +160,37 @@ pub fn sys_mmap(start: usize, len: usize, prot: usize) -> isize {
     }
 }
 
-// YOUR JOB: Implement munmap.
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
-    trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
-    -1
+/// 取消到 [start, start + len) 虚存的映射
+/// 参数和返回值请参考 mmap
+/// 为了简单，参数错误时不考虑内存的恢复和回收。
+/// 可能的错误：
+/// - [start, start + len) 中存在未被映射的虚存。
+/// - [start, start + len) 和调用mmap时提供的不一致
+/// - [start, start + len) 中存在未被映射的虚存。
+pub fn sys_munmap(start: usize, len: usize) -> isize {
+    trace!("kernel: sys_munmap start={:#x}, len={:#x}", start, len);
+
+    // 检查 len 为 0 的情况
+    if len == 0 {
+        return 0;
+    }
+
+    let start_va = crate::mm::VirtAddr::from(start);
+
+    let end_va = crate::mm::VirtAddr::from(start + len);
+
+    // 调用新的接口来取消映射
+    if crate::task::munmap_for_current_task(start_va, end_va) {
+        trace!(
+            "sys_munmap: successfully unmapped [{:#x}, {:#x})",
+            start,
+            start + len
+        );
+        0
+    } else {
+        trace!("sys_munmap: failed to unmap, address range not fully mapped");
+        -1
+    }
 }
 
 /// change data segment size

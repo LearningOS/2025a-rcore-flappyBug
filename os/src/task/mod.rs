@@ -190,6 +190,29 @@ impl TaskManager {
         memory_set.insert_framed_area(start_va, end_va, map_perm);
         true
     }
+
+    /// Unmap memory area for the current task
+    fn munmap_for_current_task(
+        &self,
+        start_va: crate::mm::VirtAddr,
+        end_va: crate::mm::VirtAddr,
+    ) -> bool {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        let memory_set = &mut inner.tasks[current].memory_set;
+
+        // 检查地址范围是否完全被映射
+        let start_vpn = start_va.floor();
+        let end_vpn = end_va.ceil();
+        for vpn in crate::mm::VPNRange::new(start_vpn, end_vpn) {
+            if memory_set.translate(vpn).is_none() {
+                return false; // 有未映射的页
+            }
+        }
+
+        // 移除对应的 MapArea
+        memory_set.remove_area_with_range(start_va, end_va)
+    }
 }
 
 /// Run the first task in task list.
@@ -258,3 +281,13 @@ pub fn mmap_for_current_task(
 ) -> bool {
     TASK_MANAGER.mmap_for_current_task(start_va, end_va, map_perm)
 }
+
+/// Unmap memory area for the current task
+pub fn munmap_for_current_task(
+    start_va: crate::mm::VirtAddr,
+    end_va: crate::mm::VirtAddr,
+) -> bool {
+    TASK_MANAGER.munmap_for_current_task(start_va, end_va)
+}
+
+
