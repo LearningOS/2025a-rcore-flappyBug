@@ -29,7 +29,7 @@ pub fn sys_yield() -> isize {
 
 /// YOUR JOB: get time with second and microsecond
 /// HINT: You might reimplement it with virtual memory management.
-/// HINT: What if [`TimeVal`] is splitted by two pages ?
+/// HINT: What if [`TimeVal`] is split by two pages ?
 pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
     trace!("kernel: sys_get_time");
     let us = get_time_us();
@@ -87,10 +87,77 @@ pub fn sys_trace(trace_request: usize, id: usize, data: usize) -> isize {
     }
 }
 
-// YOUR JOB: Implement mmap.
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
-    trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
-    -1
+/// 申请长度为 len 字节的物理内存（不要求实际物理内存位置，可以随便找一块），将其映射到 start 开始的虚存，内存页属性为 prot
+/// start 需要映射的虚存起始地址，要求按页对齐
+/// len 映射字节长度，可以为 0
+/// prot：第 0 位表示是否可读，第 1 位表示是否可写，第 2 位表示是否可执行。其他位无效且必须为 0
+/// 返回值：执行成功则返回 0，错误返回 -1
+/// 可能的错误：
+/// - start 没有按页大小对齐
+/// - prot & !0x7 != 0 (prot 其余位必须为0)
+/// - prot & 0x7 = 0 (这样的内存无意义)
+/// - [start, start + len) 中存在已经被映射的页
+/// - 物理内存不足
+pub fn sys_mmap(start: usize, len: usize, prot: usize) -> isize {
+    trace!(
+        "kernel: sys_mmap start={:#x}, len={:#x}, prot={:#x}",
+        start,
+        len,
+        prot
+    );
+
+    // 检查 prot 参数的有效性
+    if prot & !0x7 != 0 {
+        trace!("sys_mmap: invalid prot bits");
+        return -1;
+    }
+    if prot & 0x7 == 0 {
+        trace!("sys_mmap: prot cannot be 0");
+        return -1;
+    }
+
+    // 检查 len 为 0 的情况
+    if len == 0 {
+        return 0;
+    }
+
+    let start_va = crate::mm::VirtAddr::from(start);
+    // 检查地址是否按页对齐
+    if !start_va.aligned() {
+        trace!("sys_mmap: start address not aligned");
+        return -1;
+    }
+
+    let end_va = crate::mm::VirtAddr::from(start + len);
+
+    // 构造 MapPermission
+    let mut map_perm = crate::mm::MapPermission::U; // 用户态可访问
+    if prot & 0x1 != 0 {
+        // 可读
+        map_perm |= crate::mm::MapPermission::R;
+    }
+    if prot & 0x2 != 0 {
+        // 可写
+        map_perm |= crate::mm::MapPermission::W;
+    }
+    if prot & 0x4 != 0 {
+        // 可执行
+        map_perm |= crate::mm::MapPermission::X;
+    }
+
+    // 调用新的接口来修改当前任务的内存空间
+    if crate::task::mmap_for_current_task(start_va, end_va, map_perm) {
+        trace!(
+            "sys_mmap: successfully mapped [{:#x}, {:#x}) with perm {:?}",
+            start,
+            start + len,
+            map_perm
+        );
+        0
+    } else {
+        trace!("sys_mmap: failed to map, address range conflict");
+        -1
+    }
 }
 
 // YOUR JOB: Implement munmap.
@@ -98,6 +165,7 @@ pub fn sys_munmap(_start: usize, _len: usize) -> isize {
     trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
     -1
 }
+
 /// change data segment size
 pub fn sys_sbrk(size: i32) -> isize {
     trace!("kernel: sys_sbrk");

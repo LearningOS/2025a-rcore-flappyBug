@@ -368,13 +368,13 @@ pub enum MapType {
 bitflags! {
     /// map permission corresponding to that in pte: `R W X U`
     pub struct MapPermission: u8 {
-        ///Readable
+        /// Readable
         const R = 1 << 1;
-        ///Writable
+        /// Writable
         const W = 1 << 2;
-        ///Excutable
+        /// Executable
         const X = 1 << 3;
-        ///Accessible in U mode
+        /// Accessible in U mode
         const U = 1 << 4;
     }
 }
